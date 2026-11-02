@@ -42,8 +42,10 @@
     "vitest": "^3.2.7"
   },
   "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.5",
-    "@types/passport-jwt": "^4.0.1"
+    "@types/passport-jwt": "^4.0.1",
+    "typescript": "^5.9.3"
   }
 }
