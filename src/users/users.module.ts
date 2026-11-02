@@ -8,6 +8,7 @@ import { DataRequest } from "./entities/data-request.entity.js";
 import { UserSessionsService } from "./user-sessions.service.js";
 import { DataRequestsService } from "./data-requests.service.js";
 import { UsersController } from "./users.controller.js";
+import { SettingsService } from "./settings.service.js";
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { UsersController } from "./users.controller.js";
   providers: [
     UsersService,
     UserSessionsService,
-    UserSessionsService,
+    SettingsService,
     DataRequestsService,
   ],
   exports: [UsersService, UserSessionsService],

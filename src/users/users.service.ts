@@ -62,7 +62,10 @@ export class UsersService {
   }
 
   private avatarUrl(file: string) {
-    return `${this.configService.get("APP_URL") ?? ""}/uploads/avatars/${file}`;
+    const appUrl =
+      this.configService.get<string>("APP_URL") ??
+      `http://localhost:${this.configService.get("PORT") ?? 5000}`;
+    return `${appUrl.replace(/\/+$/, "")}/uploads/avatars/${file}`;
   }
 
   /** The only place a User becomes API output, so `password` can never leak. */
