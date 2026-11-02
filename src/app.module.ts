@@ -18,6 +18,9 @@ import { AuthModule } from "./auth/auth.module.js";
         database: config.get("DB_NAME"),
         autoLoadEntities: true,
         synchronize: true, // DEV ONLY
+        ssl: {
+          rejectUnauthorized: true,
+        },
       }),
     }),
     UsersModule,
