@@ -6,8 +6,8 @@ import { InvestmentHolding } from "../investments/entities/investment-holding.en
 import { DashboardController } from "./dashboard.controller.js";
 import { DashboardService } from "./dashboard.service.js";
 import { Account } from "../accounts/entities/account.entity.js";
-import { Transaction } from "typeorm";
 import { Budget } from "../budgets/entities/budget.entity.js";
+import { Transaction } from "../transactions/entities/transaction.entity.js";
 
 @Module({
   imports: [

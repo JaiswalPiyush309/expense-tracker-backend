@@ -9,7 +9,12 @@ function normalizeOrigin(origin: string): string {
 }
 
 export async function createApp() {
+  console.log("Creating NestJS application...");
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  console.log("NestJS application created.");
+
   const allowedOrigins = (process.env.FRONTEND_URLS ?? "")
     .split(",")
     .map(normalizeOrigin)
@@ -18,7 +23,10 @@ export async function createApp() {
   app.enableCors({
     origin: (requestOrigin, callback) => {
       // Requests without an Origin header include health checks and direct API calls.
-      if (!requestOrigin || allowedOrigins.includes(normalizeOrigin(requestOrigin))) {
+      if (
+        !requestOrigin ||
+        allowedOrigins.includes(normalizeOrigin(requestOrigin))
+      ) {
         callback(null, true);
         return;
       }
@@ -31,6 +39,11 @@ export async function createApp() {
   app.useStaticAssets(join(process.cwd(), "uploads"));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
+  console.log("Initializing NestJS modules...");
+
   await app.init();
+
+  console.log("NestJS initialization completed.");
+
   return app;
 }

@@ -3,6 +3,9 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UsersModule } from "./users/users.module.js";
 import { AuthModule } from "./auth/auth.module.js";
+import { DashboardModule } from "./dashboard/dashboard.module.js";
+import { TransactionsModule } from "./transactions/transactions.module.js";
+import { CategoriesModule } from "./categories/categories.module.js";
 
 @Module({
   imports: [
@@ -21,10 +24,16 @@ import { AuthModule } from "./auth/auth.module.js";
         ssl: {
           rejectUnauthorized: true,
         },
+        retryAttempts: 1,
+        retryDelay: 1000,
+        logging: ["error", "warn"],
       }),
     }),
     UsersModule,
     AuthModule,
+    DashboardModule,
+    TransactionsModule,
+    CategoriesModule,
   ],
 })
 export class AppModule {}

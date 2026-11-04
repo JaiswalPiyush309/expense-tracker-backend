@@ -2,6 +2,7 @@ import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { DashboardService } from "./dashboard.service.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
+import type { AuthUser } from "../auth/current-user.decorator.js";
 import { DashboardQueryDTO } from "./dto/dashboard-query.dto.js";
 
 @Controller("dashboard")
@@ -11,9 +12,9 @@ export class DashboardController {
 
   @Get("summary")
   getSummary(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: AuthUser,
     @Query() query: DashboardQueryDTO,
   ) {
-    return this.dashboardService.getDashboardSummary(user.id, query);
+    return this.dashboardService.getDashboardSummary(user.userId, query);
   }
 }
