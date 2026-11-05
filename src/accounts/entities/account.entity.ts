@@ -34,22 +34,37 @@ export class Account {
   user: User;
 
   @Column({ length: 100 })
-  name: string;
+  name: string; // Display nickname, e.g., "HDFC Salary", "ICICI Savings", "Paytm"
 
   @Column({ type: "enum", enum: AccountType, default: AccountType.BANK })
   type: AccountType;
+
+  @Column({ length: 100, nullable: true })
+  bankName: string; // e.g., "HDFC Bank", "State Bank of India"
+
+  @Column({ length: 4, nullable: true })
+  accountNumberLast4: string; // e.g., "4582" (Safe to display in dropdown: "HDFC ••4582")
+
+  @Column({ length: 100, nullable: true })
+  upiId: string; // Optional, e.g., "piyush@okhdfcbank"
 
   @Column({ length: 3, default: "INR" }) // Or linked to UserSettings currency
   currency: string;
 
   @Column({ type: "decimal", precision: 12, scale: 2, default: 0 })
-  balance: number;
+  openingBalance: number; // Initial balance when the user adds the account
+
+  @Column({ type: "decimal", precision: 12, scale: 2, default: 0 })
+  balance: number; // Current live balance (updated automatically on every transaction)
 
   @Column({ nullable: true, length: 50 })
   icon: string;
 
   @Column({ nullable: true, length: 20 })
   color: string;
+
+  @Column({ default: false })
+  isDefault: boolean; // Pre-selects this account in "Add Expense / Add Income" modal
 
   @Column({ default: false })
   isArchived: boolean;
