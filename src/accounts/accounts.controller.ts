@@ -13,6 +13,7 @@ import {
 import { AuthGuard } from "@nestjs/passport";
 import { AccountsService } from "./accounts.service.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
+import type { AuthUser } from "../auth/current-user.decorator.js";
 import { CreateAccountDTO } from "./dto/create-account.dto.js";
 import { UpdateAccountDto } from "./dto/update-account.dto.js";
 
@@ -29,48 +30,48 @@ export class AccountsController {
 
   @Post()
   create(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: AuthUser,
     @Body() createAccountDto: CreateAccountDTO,
   ) {
-    return this.accountsService.create(user.id, createAccountDto);
+    return this.accountsService.create(user.userId, createAccountDto);
   }
 
   @Get()
   findAll(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: AuthUser,
     @Query("includeArchived") includeArchived?: string,
   ) {
-    return this.accountsService.findAll(user.id, includeArchived === "true");
+    return this.accountsService.findAll(user.userId, includeArchived === "true");
   }
 
   // Used by your "Add Expense" / "Add Income" modal dropdown
   @Get("options")
-  getDropdownOptions(@CurrentUser() user: { id: string }) {
-    return this.accountsService.getDropdownOptions(user.id);
+  getDropdownOptions(@CurrentUser() user: AuthUser) {
+    return this.accountsService.getDropdownOptions(user.userId);
   }
 
   @Get(":id")
   findOne(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    return this.accountsService.findOne(user.id, id);
+    return this.accountsService.findOne(user.userId, id);
   }
 
   @Patch(":id")
   update(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() updateAccountDto: UpdateAccountDto,
   ) {
-    return this.accountsService.update(user.id, id, updateAccountDto);
+    return this.accountsService.update(user.userId, id, updateAccountDto);
   }
 
   @Delete(":id")
   remove(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
   ) {
-    return this.accountsService.archiveOrRemove(user.id, id);
+    return this.accountsService.archiveOrRemove(user.userId, id);
   }
 }
