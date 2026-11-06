@@ -6,6 +6,7 @@ import { AuthModule } from "./auth/auth.module.js";
 import { DashboardModule } from "./dashboard/dashboard.module.js";
 import { TransactionsModule } from "./transactions/transactions.module.js";
 import { CategoriesModule } from "./categories/categories.module.js";
+import { AccountsModule } from "./accounts/accounts.module.js";
 
 @Module({
   imports: [
@@ -21,12 +22,12 @@ import { CategoriesModule } from "./categories/categories.module.js";
         database: config.get("DB_NAME"),
         autoLoadEntities: true,
         synchronize: true, // DEV ONLY
-        ssl: {
-          rejectUnauthorized: true,
-        },
         retryAttempts: 1,
         retryDelay: 1000,
         logging: ["error", "warn"],
+        // ssl: {
+        //   rejectUnauthorized: true,
+        // },
       }),
     }),
     UsersModule,
@@ -34,6 +35,7 @@ import { CategoriesModule } from "./categories/categories.module.js";
     DashboardModule,
     TransactionsModule,
     CategoriesModule,
+    AccountsModule,
   ],
 })
 export class AppModule {}
