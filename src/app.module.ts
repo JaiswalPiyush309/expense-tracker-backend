@@ -25,9 +25,9 @@ import { AccountsModule } from "./accounts/accounts.module.js";
         retryAttempts: 1,
         retryDelay: 1000,
         logging: ["error", "warn"],
-        // ssl: {
-        //   rejectUnauthorized: true,
-        // },
+        ssl: {
+          rejectUnauthorized: true,
+        },
       }),
     }),
     UsersModule,
