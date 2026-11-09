@@ -10,7 +10,7 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 import { User } from "../../users/entities/user.entity.js";
-import { StagedTransaction } from "./staged-transaction.entity.js";
+import type { StagedTransaction } from "./staged-transaction.entity.js";
 
 export enum ImportSourceType {
   UPI = "UPI",
@@ -66,7 +66,7 @@ export class ImportBatch {
   @Column({ type: "int", default: 0 })
   totalRows: number;
 
-  @OneToMany(() => StagedTransaction, (staged) => staged.batch, {
+  @OneToMany("StagedTransaction", (staged: StagedTransaction) => staged.batch, {
     cascade: true,
   })
   stagedTransactions: StagedTransaction[];

@@ -6,9 +6,10 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
   UpdateDateColumn,
 } from "typeorm";
-import { ImportBatch } from "./import-batch.entity.js";
+import type { ImportBatch } from "./import-batch.entity.js";
 import { TransactionType } from "./transaction.entity.js";
 import { Account } from "../../accounts/entities/account.entity.js";
 import { Category } from "../../categories/entities/category.entity.js";
@@ -29,11 +30,11 @@ export class StagedTransaction {
   @Column({ type: "uuid" })
   batchId: string;
 
-  @ManyToOne(() => ImportBatch, (b) => b.stagedTransactions, {
+  @ManyToOne("ImportBatch", (b: ImportBatch) => b.stagedTransactions, {
     onDelete: "CASCADE",
   })
   @JoinColumn({ name: "batchId" })
-  batch: ImportBatch;
+  batch: Relation<ImportBatch>;
 
   @Column({ type: "uuid" })
   userId: string;
