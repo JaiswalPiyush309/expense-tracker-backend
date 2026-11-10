@@ -53,7 +53,7 @@ export class ImportBatch {
   @Column({ type: "enum", enum: UpiApp, nullable: true })
   upiApp: UpiApp | null; // PHONEPE | GPAY | PAYTM
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: "varchar", length: 100, nullable: true })
   bankCode: string | null; // e.g. "HDFC", "SBIN"
 
   @Column({
