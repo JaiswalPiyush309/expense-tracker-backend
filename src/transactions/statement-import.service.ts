@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { StatementParserService } from "./statement-parser.service.js";
@@ -34,6 +35,10 @@ export class StatementImportService {
     file: Express.Multer.File,
     dto: UploadStatementDTO,
   ): Promise<ImportBatch> {
+    if (!userId) {
+      throw new UnauthorizedException("Authenticated user id is missing.");
+    }
+
     if (!file || !file.buffer) {
       throw new BadRequestException(
         "A valid statement file (CSV or XLSX) is required.",
