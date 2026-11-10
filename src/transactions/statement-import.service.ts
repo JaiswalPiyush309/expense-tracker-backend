@@ -166,8 +166,12 @@ export class StatementImportService {
     }
 
     return {
+      id: batch.id,
       batchId: batch.id,
       fileName: batch.fileName,
+      sourceType: batch.sourceType,
+      upiApp: batch.upiApp,
+      bankCode: batch.bankCode,
       status: batch.status,
       totalRows: batch.totalRows,
       unresolvedAccountsCount: batch.stagedTransactions.filter(
@@ -175,6 +179,7 @@ export class StatementImportService {
       ).length,
       duplicatesCount: batch.stagedTransactions.filter((s) => s.isDuplicate)
         .length,
+      rows: batch.stagedTransactions,
       records: batch.stagedTransactions,
     };
   }

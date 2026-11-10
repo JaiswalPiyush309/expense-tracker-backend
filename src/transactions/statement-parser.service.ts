@@ -21,6 +21,8 @@ export class StatementParserService {
     const sheet = workbook.Sheets[firstSheetName];
     const rawData: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+    console.log("upiApp:- ", upiApp);
+
     if (upiApp === "PHONEPE") {
       return this.parsePhonePe(rawData);
     }
