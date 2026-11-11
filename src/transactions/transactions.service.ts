@@ -101,6 +101,7 @@ export class TransactionsService {
       .createQueryBuilder("tx")
       .leftJoinAndSelect("tx.category", "category")
       .leftJoinAndSelect("tx.account", "account")
+      .leftJoinAndSelect("tx.toAccount", "toAccount")
       .where("tx.userId = :userId", { userId });
 
     if (type) qb.andWhere("tx.type = :type", { type });
