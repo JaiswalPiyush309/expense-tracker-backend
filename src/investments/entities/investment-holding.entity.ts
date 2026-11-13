@@ -40,6 +40,21 @@ export class InvestmentHolding {
   @Column({ length: 80, nullable: true })
   categoryTag: string; // e.g., "Nifty 50", "Midcap Focus"
 
+  @Column({ length: 50, nullable: true })
+  tickerSymbol: string; // e.g., "RELIANCE"
+
+  @Column({ length: 20, nullable: true })
+  isin: string; // Crucial for mapping Groww CSV imports reliably without name mismatches
+
+  @Column({ type: "decimal", precision: 14, scale: 4, default: 0 })
+  deliveryQuantity: number; // Free shares / unpledged units
+
+  @Column({ type: "decimal", precision: 14, scale: 4, default: 0 })
+  mtfQuantity: number; // Shares pledged as collateral for Groww Margin Trading
+
+  @Column({ type: "decimal", precision: 14, scale: 2, default: 0 })
+  averagePrice: number; // Weighted average cost basis per share
+
   @Column({ type: "decimal", precision: 14, scale: 2, default: 0 })
   investedAmount: number;
 

@@ -8,6 +8,7 @@ import { TransactionsModule } from "./transactions/transactions.module.js";
 import { CategoriesModule } from "./categories/categories.module.js";
 import { AccountsModule } from "./accounts/accounts.module.js";
 import { TransactionSyncModule } from "./transaction-sync/transaction-sync.module.js";
+import { InvestmentsModule } from "./investments/investments.module.js";
 
 @Module({
   imports: [
@@ -22,13 +23,15 @@ import { TransactionSyncModule } from "./transaction-sync/transaction-sync.modul
         password: config.get("DB_PASSWORD"),
         database: config.get("DB_NAME"),
         autoLoadEntities: true,
-        synchronize: true, // DEV ONLY
+        // Never synchronize a shared/production database automatically. This can
+        // race across serverless instances and recreate PostgreSQL enum types.
+        synchronize: config.get<string>("DB_SYNCHRONIZE") === "true",
         retryAttempts: 1,
         retryDelay: 1000,
         logging: ["error", "warn"],
-        ssl: {
-          rejectUnauthorized: true,
-        },
+        // ssl: {
+        //   rejectUnauthorized: true,
+        // },
       }),
     }),
     UsersModule,
@@ -38,6 +41,7 @@ import { TransactionSyncModule } from "./transaction-sync/transaction-sync.modul
     CategoriesModule,
     AccountsModule,
     TransactionSyncModule,
+    InvestmentsModule,
   ],
 })
 export class AppModule {}
