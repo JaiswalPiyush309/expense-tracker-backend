@@ -26,6 +26,9 @@ import {
 } from "../categories/entities/category.entity.js";
 import { TransactionSourceMapping } from "./entities/transaction-source-mapping.entity.js";
 import { SaveSourceMappingDTO } from "./dto/save-source-mapping.dto.js";
+import { TransactionType } from "../transactions/entities/transaction.entity.js";
+import { DataSource } from "typeorm/browser";
+import { TransactionsService } from "../transactions/transactions.service.js";
 
 @Injectable()
 export class TransactionSyncService {
@@ -44,6 +47,10 @@ export class TransactionSyncService {
 
     @InjectRepository(TransactionSourceMapping)
     private readonly transactionSourceMappingRepository: Repository<TransactionSourceMapping>,
+
+    private readonly dataSource: DataSource,
+
+    private readonly transactionsService: TransactionsService,
   ) {}
 
   private hashDeviceToken(token: string): string {
@@ -223,53 +230,85 @@ export class TransactionSyncService {
       failureReason = "No category configured for this transaction direction.";
     }
 
-    // 7. Prepare imported transaction.
-    const transaction = this.importedTransactionRepository.create({
-      userId,
-      sourceId: source.id,
-      idempotencyKey: dto.idempotencyKey,
-      providerReference,
-      sourceApp: dto.sourceApp,
-      amount: dto.amount.toFixed(2),
-      currency: dto.currency ?? "INR",
-      direction: dto.direction,
-      merchantName: dto.merchantName ?? null,
-      paymentMethod: "UPI",
-      transactionDate: new Date(dto.transactionDate),
-
-      // Save matched account and category.
-      accountId: matchedAccount?.id ?? null,
-      categoryId: matchedCategory?.id ?? null,
-
-      // Require review if account or category is missing.
-      processingStatus: requiresReview
-        ? ImportedTransactionStatus.REVIEW_REQUIRED
-        : ImportedTransactionStatus.PENDING,
-
-      failureReason,
-      metadata: dto.metadata ?? null,
-    });
-
     try {
-      // 8. Save imported transaction.
-      const saved = await this.importedTransactionRepository.save(transaction);
+      const saved = await this.dataSource.transaction(async (manager) => {
+        const importedRepository = manager.getRepository(ImportedTransaction);
 
-      // 9. Update device's last sync timestamp.
-      source.lastSyncAt = new Date();
-      await this.transactionSourceRepository.save(source);
+        // 1. Create the imported transaction record.
+        const importedTransaction = importedRepository.create({
+          userId,
+          sourceId: source.id,
+          idempotencyKey: dto.idempotencyKey,
+          providerReference,
+          sourceApp: dto.sourceApp,
+          amount: dto.amount.toFixed(2),
+          currency: dto.currency ?? "INR",
+          direction: dto.direction,
+          merchantName: dto.merchantName ?? null,
+          paymentMethod: "UPI",
+          transactionDate: new Date(dto.transactionDate),
+          accountId: matchedAccount?.id ?? null,
+          categoryId: matchedCategory?.id ?? null,
+          processingStatus: requiresReview
+            ? ImportedTransactionStatus.REVIEW_REQUIRED
+            : ImportedTransactionStatus.PENDING,
+          failureReason,
+          metadata: dto.metadata ?? null,
+        });
+
+        const savedImported =
+          await importedRepository.save(importedTransaction);
+
+        // 2. Create an actual Income/Expense transaction only
+        // when account and category matching succeeded.
+        if (!requiresReview && matchedAccount && matchedCategory) {
+          const createdTransaction =
+            await this.transactionsService.createWithinTransaction(
+              manager,
+              userId,
+              {
+                accountId: matchedAccount.id,
+                categoryId: matchedCategory.id,
+                type:
+                  dto.direction === TransactionDirection.DEBIT
+                    ? TransactionType.EXPENSE
+                    : TransactionType.INCOME,
+                amount: dto.amount,
+                transactionDate: dto.transactionDate,
+                merchant: dto.merchantName ?? undefined,
+              },
+            );
+
+          // 3. Link the imported record to the actual transaction.
+          savedImported.transactionId = createdTransaction.id;
+          savedImported.processingStatus = ImportedTransactionStatus.PROCESSED;
+          savedImported.failureReason = null;
+
+          await importedRepository.save(savedImported);
+        }
+
+        // 4. Update the device's last synchronization time.
+        const sourceRepository = manager.getRepository(TransactionSource);
+
+        await sourceRepository.update(
+          { id: source.id, userId },
+          { lastSyncAt: new Date() },
+        );
+
+        return savedImported;
+      });
 
       return {
         success: true,
         duplicate: false,
         message: requiresReview
           ? "Transaction received and requires manual review"
-          : "Transaction received successfully",
+          : "Transaction imported and added successfully",
         data: saved,
       };
     } catch (error: any) {
-      // 10. Handle PostgreSQL unique constraint violations.
+      // A concurrent request may have inserted the same transaction.
       if (error?.code === "23505") {
-        // Check idempotency key again in case of concurrent requests.
         const duplicate = await this.importedTransactionRepository.findOne({
           where: {
             userId,
@@ -286,7 +325,6 @@ export class TransactionSyncService {
           };
         }
 
-        // Check provider reference again.
         if (providerReference) {
           const referenceDuplicate =
             await this.importedTransactionRepository.findOne({
@@ -307,7 +345,6 @@ export class TransactionSyncService {
           }
         }
       }
-
       throw error;
     }
   }

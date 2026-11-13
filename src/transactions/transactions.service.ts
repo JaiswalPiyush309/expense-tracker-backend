@@ -3,81 +3,97 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, EntityManager } from "typeorm";
 import { CreateTransactionDTO } from "./dto/create-transaction.dto.js";
 import { Account } from "../accounts/entities/account.entity.js";
-import {
-  Transaction,
-  TransactionType,
-} from "./entities/transaction.entity.js";
+import { Transaction, TransactionType } from "./entities/transaction.entity.js";
 import { TransactionQueryDTO } from "./dto/transaction-query.dto.js";
 
 @Injectable()
 export class TransactionsService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly transactionsService: TransactionsService,
+  ) {}
 
   async create(
     userId: string,
     dto: CreateTransactionDTO,
   ): Promise<Transaction> {
     return this.dataSource.transaction(async (manager) => {
-      const amount = Number(dto.amount);
-      const transactionDate = new Date(dto.transactionDate);
+      return this.createWithinTransaction(manager, userId, dto);
+    });
+  }
 
-      if (!Number.isFinite(amount) || amount <= 0) {
-        throw new BadRequestException("Amount must be greater than zero");
-      }
+  /**
+   * Creates a transaction using an existing EntityManager.
+   * This allows transaction imports to reuse the same database transaction.
+   */
+  async createWithinTransaction(
+    manager: EntityManager,
+    userId: string,
+    dto: CreateTransactionDTO,
+  ): Promise<Transaction> {
+    const amount = Number(dto.amount);
+    const transactionDate = new Date(dto.transactionDate);
 
-      if (Number.isNaN(transactionDate.getTime())) {
-        throw new BadRequestException("Invalid transaction date");
-      }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException("Amount must be greater than zero");
+    }
 
-      if (dto.type === TransactionType.TRANSFER &&
-        (!dto.toAccountId || dto.toAccountId === dto.accountId)) {
-        throw new BadRequestException(
-          "Valid destination account required for transfer",
-        );
-      }
+    if (Number.isNaN(transactionDate.getTime())) {
+      throw new BadRequestException("Invalid transaction date");
+    }
 
-      const account = await manager.findOne(Account, {
-        where: { id: dto.accountId, userId },
+    if (
+      dto.type === TransactionType.TRANSFER &&
+      (!dto.toAccountId || dto.toAccountId === dto.accountId)
+    ) {
+      throw new BadRequestException(
+        "Valid destination account required for transfer",
+      );
+    }
+
+    const account = await manager.findOne(Account, {
+      where: { id: dto.accountId, userId },
+      lock: { mode: "pessimistic_write" },
+    });
+
+    if (!account) {
+      throw new NotFoundException("Source account not found");
+    }
+
+    if (dto.type === TransactionType.EXPENSE) {
+      account.balance = Number(account.balance) - amount;
+      await manager.save(Account, account);
+    } else if (dto.type === TransactionType.INCOME) {
+      account.balance = Number(account.balance) + amount;
+      await manager.save(Account, account);
+    } else if (dto.type === TransactionType.TRANSFER) {
+      const toAccount = await manager.findOne(Account, {
+        where: { id: dto.toAccountId, userId },
         lock: { mode: "pessimistic_write" },
       });
 
-      if (!account) {
-        throw new NotFoundException("Source account not found");
+      if (!toAccount) {
+        throw new NotFoundException("Destination account not found");
       }
 
-      if (dto.type === TransactionType.EXPENSE) {
-        account.balance = Number(account.balance) - amount;
-        await manager.save(Account, account);
-      } else if (dto.type === TransactionType.INCOME) {
-        account.balance = Number(account.balance) + amount;
-        await manager.save(Account, account);
-      } else if (dto.type === TransactionType.TRANSFER) {
-        const toAccount = await manager.findOne(Account, {
-          where: { id: dto.toAccountId, userId },
-          lock: { mode: "pessimistic_write" },
-        });
-        if (!toAccount) {
-          throw new NotFoundException("Destination account not found");
-        }
+      account.balance = Number(account.balance) - amount;
+      toAccount.balance = Number(toAccount.balance) + amount;
 
-        account.balance = Number(account.balance) - amount;
-        toAccount.balance = Number(toAccount.balance) + amount;
-        await manager.save(Account, [account, toAccount]);
-      }
+      await manager.save(Account, [account, toAccount]);
+    }
 
-      const transaction = manager.create(Transaction, {
-        ...dto,
-        userId,
-        toAccountId:
-          dto.type === TransactionType.TRANSFER ? dto.toAccountId : undefined,
-        transactionDate,
-      });
-
-      return manager.save(Transaction, transaction);
+    const transaction = manager.create(Transaction, {
+      ...dto,
+      userId,
+      toAccountId:
+        dto.type === TransactionType.TRANSFER ? dto.toAccountId : undefined,
+      transactionDate,
     });
+
+    return manager.save(Transaction, transaction);
   }
 
   async findAll(userId: string, query: TransactionQueryDTO) {
