@@ -2,8 +2,8 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Post,
-  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -13,6 +13,11 @@ import { InvestmentsService } from "./investments.service.js";
 import { CreateTradeDTO } from "./dto/create-trade.dto.js";
 import { GrowwImportService } from "./groww-import.service.js";
 import { FileInterceptor } from "@nestjs/platform-express";
+import {
+  HoldingResponseDTO,
+  ShareMarketDashboardDTO,
+} from "./interfaces/dashboard-metrics.interface.js";
+import { AuthUser, CurrentUser } from "../auth/current-user.decorator.js";
 
 @Controller("investments")
 @UseGuards(AuthGuard("jwt"))
@@ -23,7 +28,11 @@ export class InvestmentsController {
   ) {}
 
   @Post("trade")
-  async processTrade(@Body() createTradeDto: CreateTradeDTO, @Req() req: any) {
+  async processTrade(
+    @Body() createTradeDto: CreateTradeDTO,
+    @CurrentUser() user: AuthUser,
+  ) {
+    createTradeDto.userId = user.userId;
     const transaction =
       await this.investmentsService.processTrade(createTradeDto);
 
@@ -37,14 +46,14 @@ export class InvestmentsController {
   @UseInterceptors(FileInterceptor("file"))
   async importGrowwTrades(
     @UploadedFile() file: Express.Multer.File,
-    @Body("userId") userId: string, // In production, get this from @Req() req.user.id
+    @CurrentUser() user: AuthUser,
   ) {
     if (!file) {
       throw new BadRequestException("Groww export file is required.");
     }
 
     const importResults = await this.growwImportService.processTradeBook(
-      userId,
+      user.userId,
       file.buffer,
     );
 
@@ -52,5 +61,19 @@ export class InvestmentsController {
       message: "Groww import completed",
       data: importResults,
     };
+  }
+
+  @Get("dashboard")
+  async getDashboardMetrics(
+    @CurrentUser() user: AuthUser,
+  ): Promise<ShareMarketDashboardDTO> {
+    return this.investmentsService.getDashboardMetrics(user.userId);
+  }
+
+  @Get("holdings")
+  async getHoldings(
+    @CurrentUser() user: AuthUser,
+  ): Promise<HoldingResponseDTO[]> {
+    return this.investmentsService.getHoldings(user.userId);
   }
 }

@@ -11,7 +11,7 @@ import { TradeSegment } from "../enums/transaction.enum.js";
 
 export class CreateTradeDTO {
   @IsUUID()
-  @IsNotEmpty()
+  @IsOptional()
   userId: string;
 
   @IsString()
