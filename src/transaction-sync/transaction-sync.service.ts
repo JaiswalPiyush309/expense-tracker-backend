@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { Repository } from "typeorm";
+import { DataSource, Repository } from "typeorm";
 
 import { TransactionSource } from "./entities/transaction-source.entity.js";
 import { ImportedTransaction } from "./entities/imported-transaction.entity.js";
@@ -27,7 +27,6 @@ import {
 import { TransactionSourceMapping } from "./entities/transaction-source-mapping.entity.js";
 import { SaveSourceMappingDTO } from "./dto/save-source-mapping.dto.js";
 import { TransactionType } from "../transactions/entities/transaction.entity.js";
-import { DataSource } from "typeorm/browser";
 import { TransactionsService } from "../transactions/transactions.service.js";
 
 @Injectable()
