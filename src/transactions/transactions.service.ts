@@ -13,7 +13,6 @@ import { TransactionQueryDTO } from "./dto/transaction-query.dto.js";
 export class TransactionsService {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly transactionsService: TransactionsService,
   ) {}
 
   async create(
