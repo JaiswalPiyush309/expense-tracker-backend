@@ -8,6 +8,8 @@ import {
   IsPositive,
   Length,
   MaxLength,
+  IsObject,
+  ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
 import {
@@ -15,6 +17,22 @@ import {
   TransactionSourceApp,
 } from "../enums/transaction-sync.enum.js";
 
+export class AccountHintsDTO {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  upiId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4)
+  accountNumberLast4?: string;
+}
 export class ImportTransactionDTO {
   @IsString()
   @IsNotEmpty()
@@ -41,6 +59,12 @@ export class ImportTransactionDTO {
 
   @IsEnum(TransactionDirection)
   direction: TransactionDirection;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => AccountHintsDTO)
+  accountHints?: AccountHintsDTO;
 
   @IsOptional()
   @IsString()

@@ -97,6 +97,12 @@ export class ImportedTransaction {
   processingStatus: ImportedTransactionStatus;
 
   @Column({ type: "uuid", nullable: true })
+  accountId: string | null;
+
+  @Column({ type: "uuid", nullable: true })
+  categoryId: string | null;
+
+  @Column({ type: "uuid", nullable: true })
   transactionId: string | null;
 
   // Store only sanitized metadata, never full notification contents

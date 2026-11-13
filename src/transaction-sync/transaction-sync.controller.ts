@@ -5,12 +5,15 @@ import {
   UseGuards,
   Req,
   Headers,
+  UnauthorizedException,
+  Get,
 } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 
 import { TransactionSyncService } from "./transaction-sync.service.js";
 import { RegisterDeviceDTO } from "./dto/register-device.dto.js";
 import { ImportTransactionDTO } from "./dto/import-transaction.dto.js";
+import { SaveSourceMappingDTO } from "./dto/save-source-mapping.dto.js";
 
 interface AuthenticatedRequest {
   user: {
@@ -57,5 +60,30 @@ export class TransactionSyncController {
       dto,
       deviceToken,
     );
+  }
+
+  @Post("mappings")
+  async saveSourceMapping(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: SaveSourceMappingDTO,
+  ) {
+    const userId = req.user.userId ?? req.user.sub;
+
+    if (!userId) {
+      throw new UnauthorizedException("Authenticated user ID is missing");
+    }
+
+    return this.transactionSyncService.saveSourceMapping(userId, dto);
+  }
+
+  @Get("mappings")
+  async getSourceMappings(@Req() req: AuthenticatedRequest) {
+    const userId = req.user.userId ?? req.user.sub;
+
+    if (!userId) {
+      throw new UnauthorizedException("Authenticated user ID is missing");
+    }
+
+    return this.transactionSyncService.getSourceMappings(userId);
   }
 }
