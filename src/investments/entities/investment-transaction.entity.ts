@@ -9,17 +9,13 @@ import {
 } from "typeorm";
 import { User } from "../../users/entities/user.entity.js";
 import { InvestmentHolding } from "./investment-holding.entity.js";
+import { TradeSegment } from "../enums/transaction.enum.js";
 
 export enum TradeType {
   BUY = "BUY",
   SELL = "SELL",
   DIVIDEND = "DIVIDEND",
   MTF_INTEREST = "MTF_INTEREST", // Logs daily margin deductions from Groww
-}
-
-export enum TradeSegment {
-  DELIVERY = "DELIVERY",
-  MTF = "MTF",
 }
 
 @Entity({ name: "investment_transactions" })
