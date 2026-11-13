@@ -7,7 +7,6 @@ import { TransactionSyncService } from "./transaction-sync.service.js";
 import { TransactionSourceMapping } from "./entities/transaction-source-mapping.entity.js";
 import { Account } from "../accounts/entities/account.entity.js";
 import { Category } from "../categories/entities/category.entity.js";
-import { Transaction } from "typeorm";
 import { TransactionsModule } from "../transactions/transactions.module.js";
 
 @Module({
