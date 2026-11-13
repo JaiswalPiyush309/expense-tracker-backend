@@ -1,13 +1,14 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { TradeTransaction } from "./entities/trade-transaction.entity.js";
-import { PortfolioHolding } from "./entities/portfolio-holding.entity.js";
+import { InvestmentHolding } from "./entities/investment-holding.entity.js";
+import { InvestmentTransaction } from "./entities/investment-transaction.entity.js";
 import { InvestmentsService } from "./investments.service.js";
 import { InvestmentsController } from "./investments.controller.js";
+import { GrowwImportService } from "./groww-import.service.js";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TradeTransaction, PortfolioHolding])],
-  providers: [InvestmentsService],
+  imports: [TypeOrmModule.forFeature([InvestmentHolding, InvestmentTransaction])],
+  providers: [InvestmentsService, GrowwImportService],
   controllers: [InvestmentsController],
 })
 export class InvestmentsModule {}

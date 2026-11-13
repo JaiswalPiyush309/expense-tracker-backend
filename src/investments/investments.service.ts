@@ -20,10 +20,10 @@ import { TradeSegment } from "./enums/transaction.enum.js";
 export class InvestmentsService {
   constructor(
     @InjectRepository(InvestmentHolding)
-    private holdingRepo: Repository<InvestmentHolding>,
+    private investmentHoldingRepository: Repository<InvestmentHolding>,
 
     @InjectRepository(InvestmentTransaction)
-    private transactionRepo: Repository<InvestmentTransaction>,
+    private investmentTransactionRepository: Repository<InvestmentTransaction>,
 
     private dataSource: DataSource,
   ) {}
@@ -60,6 +60,7 @@ export class InvestmentsService {
         this.assertNonNegativeNumber(dto.executionPrice, "executionPrice");
         this.assertNonNegativeNumber(dto.chargesAndTaxes, "chargesAndTaxes");
 
+        // 2. Find or Initialize the Portfolio Holding
         const holding = await manager.findOne(InvestmentHolding, {
           where: { userId: dto.userId, tickerSymbol },
         });
@@ -78,14 +79,18 @@ export class InvestmentsService {
       }
 
       if (dto.tradeType !== TradeType.BUY && dto.tradeType !== TradeType.SELL) {
-        throw new BadRequestException(`Unsupported trade type: ${dto.tradeType}`);
+        throw new BadRequestException(
+          `Unsupported trade type: ${dto.tradeType}`,
+        );
       }
 
       this.assertPositiveNumber(dto.quantity, "quantity");
       this.assertNonNegativeNumber(dto.executionPrice, "executionPrice");
       this.assertNonNegativeNumber(dto.chargesAndTaxes, "chargesAndTaxes");
       if (!dto.segment) {
-        throw new BadRequestException("segment is required for BUY and SELL trades.");
+        throw new BadRequestException(
+          "segment is required for BUY and SELL trades.",
+        );
       }
 
       // 2. Find or Initialize the Portfolio Holding
@@ -134,8 +139,7 @@ export class InvestmentsService {
         holding.averagePrice = (currentInvested + newInvested) / newTotalQty;
 
         if (isMtf) {
-          holding.mtfQuantity =
-            Number(holding.mtfQuantity) + quantity;
+          holding.mtfQuantity = Number(holding.mtfQuantity) + quantity;
         } else {
           holding.deliveryQuantity =
             Number(holding.deliveryQuantity) + quantity;
@@ -157,7 +161,8 @@ export class InvestmentsService {
         if (isMtf) {
           holding.mtfQuantity = Number(holding.mtfQuantity) - quantity;
         } else {
-          holding.deliveryQuantity = Number(holding.deliveryQuantity) - quantity;
+          holding.deliveryQuantity =
+            Number(holding.deliveryQuantity) - quantity;
         }
 
         // Calculate Realized Profit/Loss: (Sell Price - Buy Avg Price) * Qty - Charges
