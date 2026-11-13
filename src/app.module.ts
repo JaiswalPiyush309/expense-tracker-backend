@@ -29,9 +29,9 @@ import { InvestmentsModule } from "./investments/investments.module.js";
         retryAttempts: 1,
         retryDelay: 1000,
         logging: ["error", "warn"],
-        // ssl: {
-        //   rejectUnauthorized: true,
-        // },
+        ssl: {
+          rejectUnauthorized: true,
+        },
       }),
     }),
     UsersModule,
