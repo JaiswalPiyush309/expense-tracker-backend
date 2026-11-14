@@ -56,7 +56,7 @@ export class InvestmentTransaction {
   @Column({ type: "decimal", precision: 14, scale: 2, nullable: true })
   realizedPnl: number; // Populated only for SELL transactions
 
-  @Column({ type: "date" })
+  @Column({ type: "timestamptz" })
   tradeDate: Date;
 
   @Column({ length: 100, default: "Groww" })

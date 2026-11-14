@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsNumber,
   IsOptional,
+  IsDateString,
   MaxLength,
   IsString,
   IsUUID,
@@ -39,9 +40,8 @@ export class CreateTradeDTO {
   @IsOptional()
   chargesAndTaxes?: number;
 
-  @IsString()
-  @IsNotEmpty()
-  tradeDate: string; // ISO Date string
+  @IsDateString()
+  tradeDate: string; // ISO date-time including the local transaction time
 
   @IsString()
   @IsOptional()
