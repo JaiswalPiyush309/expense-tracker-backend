@@ -5,7 +5,6 @@ import {
   Get,
   Param,
   Post,
-  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -80,8 +79,8 @@ export class InvestmentsController {
     return this.investmentsService.getHoldings(user.userId);
   }
 
-  @Get("holdings")
-  async getPortfolioHoldings(@CurrentUser() user: AuthUser, @Req() req: any) {
+  @Get("holdings/summary")
+  async getPortfolioHoldings(@CurrentUser() user: AuthUser) {
     return this.investmentsService.getPortfolioHoldings(user.userId);
   }
 
@@ -89,7 +88,6 @@ export class InvestmentsController {
   async getHoldingDetails(
     @CurrentUser() user: AuthUser,
     @Param("id") id: string,
-    @Req() req: any,
   ) {
     return this.investmentsService.getHoldingDetailsForSidebar(user.userId, id);
   }

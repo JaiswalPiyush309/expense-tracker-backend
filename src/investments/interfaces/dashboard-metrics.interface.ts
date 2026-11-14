@@ -17,7 +17,8 @@ export interface RecentActivityItemDTO {
   quantity: number;
   executionPrice: number;
   tradeDate: Date;
-  realizedPnl: number;
+  realizedPnl: number | null;
+  chargesAndTaxes: number;
   broker: string;
 }
 
@@ -42,7 +43,7 @@ export interface ShareMarketDashboardDTO {
     totalReturns: number;
     realizedPnl: number;
     unrealizedPnl: number;
-    todaysPnl: number; // Requires live market data, typically 0 if market closed
+    todaysPnl: number | null; // Null until daily market data is available
     activePositionsCount: number;
     closedPositionsCount: number;
   };

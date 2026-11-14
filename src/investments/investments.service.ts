@@ -222,8 +222,8 @@ export class InvestmentsService {
     let portfolioValue = 0;
 
     // In a real scenario, today's P&L requires fetching live LTP minus yesterday's close.
-    // We will initialize it to 0 for the base schema.
-    const todaysPnl = 0;
+    // No daily market feed is connected, so don't report a misleading zero.
+    const todaysPnl = null;
 
     // Calculate Asset Allocation grouped by categoryTag (e.g., Large Cap, Mid Cap)
     // Fall back to assetClass when categoryTag is null/empty
@@ -270,12 +270,13 @@ export class InvestmentsService {
     // 4. Generate Portfolio Growth Chart Data from real transactions
     const portfolioGrowth = await this.generateGrowthData(userId);
 
-    // 5. Fetch last 5 BUY + SELL + DIVIDEND transactions for recent activity
+    // 5. Fetch recent trades, dividends, and MTF interest for the activity ledger.
     const recentTransactions = await this.investmentTransactionRepository.find({
       where: [
         { userId, tradeType: TradeType.BUY },
         { userId, tradeType: TradeType.SELL },
         { userId, tradeType: TradeType.DIVIDEND },
+        { userId, tradeType: TradeType.MTF_INTEREST },
       ],
       order: { tradeDate: "DESC" },
       take: 5,
@@ -286,11 +287,15 @@ export class InvestmentsService {
       (tx) => ({
         id: tx.id,
         tradeType: tx.tradeType,
-        tickerSymbol: tx.holding?.tickerSymbol ?? tx.holding?.name ?? "",
+        tickerSymbol:
+          tx.holding?.tickerSymbol ??
+          tx.holding?.name ??
+          (tx.tradeType === TradeType.MTF_INTEREST ? "MTF interest" : ""),
         quantity: Number(tx.quantity ?? 0),
         executionPrice: Number(tx.executionPrice ?? 0),
         tradeDate: tx.tradeDate,
-        realizedPnl: Number(tx.realizedPnl ?? 0),
+        realizedPnl: tx.realizedPnl === null ? null : Number(tx.realizedPnl),
+        chargesAndTaxes: Number(tx.chargesAndTaxes ?? 0),
         broker: tx.broker,
       }),
     );
