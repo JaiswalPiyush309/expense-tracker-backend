@@ -174,7 +174,7 @@ export class GrowwImportService {
   }
 }
 
-interface ImportResult {
+export interface ImportResult {
   totalProcessed: number;
   successful: number;
   failed: number;

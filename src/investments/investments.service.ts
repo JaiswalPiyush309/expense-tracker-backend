@@ -20,6 +20,7 @@ import {
   RecentActivityItemDTO,
   ShareMarketDashboardDTO,
 } from "./interfaces/dashboard-metrics.interface.js";
+import { PortfolioHoldingsResponseDTO } from "./interfaces/portfolio-holdings.interface.js";
 
 @Injectable()
 export class InvestmentsService {
@@ -352,8 +353,7 @@ export class InvestmentsService {
       }); // e.g. "Nov '26"
       const formattedKey = `${date.toLocaleString("en-US", { month: "short" })} '${String(date.getFullYear()).slice(-2)}`;
 
-      const amount =
-        Number(tx.quantity ?? 0) * Number(tx.executionPrice ?? 0);
+      const amount = Number(tx.quantity ?? 0) * Number(tx.executionPrice ?? 0);
 
       if (tx.tradeType === TradeType.BUY) {
         runningInvested += amount;
@@ -386,6 +386,121 @@ export class InvestmentsService {
     return holdings.map((h) => this.mapHoldingToDTO(h));
   }
 
+  async getPortfolioHoldings(
+    userId: string,
+  ): Promise<PortfolioHoldingsResponseDTO> {
+    const holdings = await this.investmentHoldingRepository.find({
+      where: { userId },
+    });
+
+    let totalInvested = 0;
+    let currentValue = 0;
+    let activeHoldingsCount = 0;
+
+    // We will aggregate these for the top progress bars
+    const sectorExposure: Record<string, number> = {};
+    const capAllocation: Record<string, number> = {};
+
+    const enrichedHoldings = holdings.map((h) => {
+      const totalQty = Number(h.deliveryQuantity) + Number(h.mtfQuantity);
+      const invested = Number(h.investedAmount);
+
+      // For MVP without live API, we assume currentValue is stored in DB.
+      // In production, currentLtp would be fetched from a market data provider.
+      const current = Number(h.currentValue);
+
+      if (totalQty > 0) activeHoldingsCount++;
+      totalInvested += invested;
+      currentValue += current;
+
+      // Grouping logic for the UI bars
+      const sector = h.categoryTag || "Other"; // Assuming categoryTag holds Sector
+      sectorExposure[sector] = (sectorExposure[sector] || 0) + current;
+
+      return {
+        id: h.id,
+        name: h.name,
+        tickerSymbol: h.tickerSymbol,
+        quantity: totalQty,
+        averagePrice: Number(h.averagePrice),
+        investedAmount: invested,
+        currentLtp: totalQty > 0 ? current / totalQty : 0,
+        currentValue: current,
+        unrealizedPnl: current - invested,
+        pnlPercentage:
+          invested > 0 ? ((current - invested) / invested) * 100 : 0,
+        portfolioWeight: 0, // Will calculate after loop when total is known
+      };
+    });
+
+    // Calculate Portfolio Weights and Percentages
+    enrichedHoldings.forEach((h) => {
+      h.portfolioWeight =
+        currentValue > 0 ? (h.currentValue / currentValue) * 100 : 0;
+    });
+
+    // Convert raw values to percentages for the UI allocation bars
+    for (const key in sectorExposure) {
+      sectorExposure[key] = (sectorExposure[key] / currentValue) * 100;
+    }
+
+    const unrealizedPnl = currentValue - totalInvested;
+    const overallReturnPercentage =
+      totalInvested > 0 ? (unrealizedPnl / totalInvested) * 100 : 0;
+
+    return {
+      kpis: {
+        totalInvested,
+        currentValue,
+        unrealizedPnl,
+        overallReturnPercentage,
+        totalHoldingsCount: holdings.length,
+        activeHoldingsCount,
+      },
+      allocations: {
+        sectors: sectorExposure,
+        marketCaps: capAllocation, // Add logic based on your market cap data source
+      },
+      holdings: enrichedHoldings.sort(
+        (a, b) => b.currentValue - a.currentValue,
+      ), // Sort Highest Value First
+    };
+  }
+
+  async getHoldingDetailsForSidebar(userId: string, holdingId: string) {
+    const holding = await this.investmentHoldingRepository.findOne({
+      where: { id: holdingId, userId },
+    });
+
+    if (!holding) {
+      throw new NotFoundException("Holding not found");
+    }
+
+    // Fetch the trade history for the sidebar list
+    const recentTrades = await this.investmentTransactionRepository.find({
+      where: { userId, holdingId: holding.id },
+      order: { tradeDate: "DESC" },
+      take: 5, // Limit to recent trades for UI
+    });
+
+    const totalQty =
+      Number(holding.deliveryQuantity) + Number(holding.mtfQuantity);
+
+    return {
+      holdingInfo: {
+        ...holding,
+        totalQuantity: totalQty,
+        deliveryPercentage:
+          totalQty > 0
+            ? (Number(holding.deliveryQuantity) / totalQty) * 100
+            : 0,
+        mtfPercentage:
+          totalQty > 0 ? (Number(holding.mtfQuantity) / totalQty) * 100 : 0,
+      },
+      recentTrades,
+    };
+  }
+
   private mapHoldingToDTO(holding: InvestmentHolding): HoldingResponseDTO {
     const invested = Number(holding.investedAmount);
     const current =
@@ -395,9 +510,7 @@ export class InvestmentsService {
 
     const unrealizedPnl = current > 0 ? current - invested : 0;
     const totalReturnsPercent =
-      invested > 0 && current > 0
-        ? ((current - invested) / invested) * 100
-        : 0;
+      invested > 0 && current > 0 ? ((current - invested) / invested) * 100 : 0;
 
     return {
       id: holding.id,

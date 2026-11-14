@@ -3,7 +3,9 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -17,7 +19,8 @@ import {
   HoldingResponseDTO,
   ShareMarketDashboardDTO,
 } from "./interfaces/dashboard-metrics.interface.js";
-import { AuthUser, CurrentUser } from "../auth/current-user.decorator.js";
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import type { AuthUser } from "../auth/current-user.decorator.js";
 
 @Controller("investments")
 @UseGuards(AuthGuard("jwt"))
@@ -75,5 +78,19 @@ export class InvestmentsController {
     @CurrentUser() user: AuthUser,
   ): Promise<HoldingResponseDTO[]> {
     return this.investmentsService.getHoldings(user.userId);
+  }
+
+  @Get("holdings")
+  async getPortfolioHoldings(@CurrentUser() user: AuthUser, @Req() req: any) {
+    return this.investmentsService.getPortfolioHoldings(user.userId);
+  }
+
+  @Get("holdings/:id/details")
+  async getHoldingDetails(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Req() req: any,
+  ) {
+    return this.investmentsService.getHoldingDetailsForSidebar(user.userId, id);
   }
 }
