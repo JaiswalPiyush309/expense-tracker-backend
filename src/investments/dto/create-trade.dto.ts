@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsNumber,
   IsOptional,
+  MaxLength,
   IsString,
   IsUUID,
 } from "class-validator";
@@ -41,4 +42,9 @@ export class CreateTradeDTO {
   @IsString()
   @IsNotEmpty()
   tradeDate: string; // ISO Date string
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  broker?: string;
 }

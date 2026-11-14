@@ -56,6 +56,7 @@ export class InvestmentsService {
           tradeType: TradeType.MTF_INTEREST,
           chargesAndTaxes: dto.chargesAndTaxes,
           tradeDate,
+          broker: dto.broker ?? "Groww",
         });
         return manager.save(interestTx);
       }
@@ -80,6 +81,7 @@ export class InvestmentsService {
             executionPrice: dto.executionPrice,
             chargesAndTaxes: dto.chargesAndTaxes ?? 0,
             tradeDate,
+            broker: dto.broker ?? "Groww",
           }),
         );
       }
@@ -194,6 +196,7 @@ export class InvestmentsService {
         quantity: dto.quantity,
         executionPrice: dto.executionPrice,
         chargesAndTaxes,
+        broker: dto.broker ?? "Groww",
         ...(realizedPnl === undefined ? {} : { realizedPnl }),
         tradeDate,
       });
