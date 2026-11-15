@@ -47,4 +47,7 @@ export class CreateTradeDTO {
   @IsOptional()
   @MaxLength(100)
   broker?: string;
+
+  /** Stable key used to make broker imports idempotent. */
+  importFingerprint?: string;
 }

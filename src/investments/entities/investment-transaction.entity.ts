@@ -20,6 +20,7 @@ export enum TradeType {
 
 @Entity({ name: "investment_transactions" })
 @Index(["userId", "tradeDate"])
+@Index("IDX_investment_transactions_user_import_fingerprint", ["userId", "importFingerprint"], { unique: true })
 export class InvestmentTransaction {
   @PrimaryGeneratedColumn("uuid")
   id: string;
@@ -61,6 +62,9 @@ export class InvestmentTransaction {
 
   @Column({ length: 100, default: "Groww" })
   broker: string;
+
+  @Column({ type: "varchar", length: 64, nullable: true })
+  importFingerprint: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -4,6 +4,7 @@ import * as xlsx from "xlsx";
 import { TradeType } from "./entities/investment-transaction.entity.js";
 import { TradeSegment } from "./enums/transaction.enum.js";
 import { CreateTradeDTO } from "./dto/create-trade.dto.js";
+import { createHash } from "node:crypto";
 
 @Injectable()
 export class GrowwImportService {
@@ -39,14 +40,21 @@ export class GrowwImportService {
       throw new BadRequestException(`Unable to read worksheet: ${sheetName}`);
     }
 
-    // Read as a 2D array first to find where the actual table starts
-    const rawRows = xlsx.utils.sheet_to_json<any[]>(sheet, { header: 1 });
-    const headerRowIndex = rawRows.findIndex((row) =>
-      row.some(
-        (cell) =>
-          String(cell).toLowerCase().includes("symbol") ||
-          String(cell).toLowerCase().includes("stock name"),
-      ),
+    // --- Bulletproof Header Detection ---
+    const rawRows = xlsx.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      blankrows: true,
+    });
+
+    const headerRowIndex = rawRows.findIndex(
+      (row) =>
+        Array.isArray(row) &&
+        row.some((cell) => {
+          const val = String(cell || "")
+            .toLowerCase()
+            .trim();
+          return val === "symbol" || val === "stock name";
+        }),
     );
 
     if (headerRowIndex === -1) {
@@ -55,35 +63,58 @@ export class GrowwImportService {
       );
     }
 
-    // Re-parse the sheet starting exactly from the header row
-    const rows = xlsx.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: undefined,
-      raw: true,
-    });
+    // Extract headers and validate that this is a trade book.
+    const headers = rawRows[headerRowIndex].map((h) => String(h || "").trim());
+    const normalizedHeaders = new Set(headers.map((h) => h.toLowerCase()));
+    const hasAny = (...names: string[]) =>
+      names.some((name) => normalizedHeaders.has(name.toLowerCase()));
+    const missing = [
+      !hasAny("Symbol", "Trading Symbol", "Stock Name") && "symbol",
+      !hasAny("Type", "Transaction Type") && "type",
+      !hasAny("Quantity", "Qty") && "quantity",
+      !hasAny("Average Price", "Price", "Trade Price", "Value", "Order Value") && "price/value",
+      !hasAny("Execution date and time", "Date", "Trade Date", "Order Date") && "date",
+    ].filter((value): value is string => Boolean(value));
+    if (missing.length) {
+      throw new BadRequestException(`Invalid Groww trade book: missing required column(s): ${missing.join(", ")}.`);
+    }
+    const dataRows = rawRows.slice(headerRowIndex + 1);
+
+    const rows = dataRows
+      .map((row, index) => ({ row, worksheetRow: headerRowIndex + index + 2 }))
+      .filter(({ row }) => Array.isArray(row) && row.some((cell) => cell != null && cell !== ""))
+      .map(({ row, worksheetRow }) => {
+        const obj: Record<string, unknown> = {};
+        headers.forEach((header, i) => {
+          if (header) obj[header] = row[i];
+        });
+        return { values: obj, worksheetRow };
+      });
 
     const results = {
       totalProcessed: 0,
       successful: 0,
       failed: 0,
+      skipped: 0,
       errors: [] as { row: number; symbol: string; error: string }[],
     };
 
-    // --- IMPROVEMENT 2: Phase 1 - Parse and Filter ---
-    const parsedTrades: CreateTradeDTO[] = [];
+    // --- PHASE 1: Extract and Map (Do not save to DB yet) ---
+    const parsedTrades: { trade: CreateTradeDTO; row: number }[] = [];
 
-    for (const [index, row] of rows.entries()) {
-      results.totalProcessed++;
+    for (const { values: row, worksheetRow } of rows) {
 
-      // Skip non-executed orders
       const status = this.readText(
         row,
         "Order status",
         "Status",
       )?.toUpperCase();
 
-      if (status && status !== "EXECUTED") {
+      if (status && status !== "EXECUTED" && status !== "SUCCESS") {
+        results.skipped++;
         continue;
       }
+      results.totalProcessed++;
 
       const symbol = this.readText(
         row,
@@ -105,8 +136,6 @@ export class GrowwImportService {
 
         const tradeType = this.parseTradeType(rawType);
 
-        // Groww Trade Books usually denote MTF in the remarks or separate MTF sections.
-        // Defaulting to DELIVERY. Adjust this logic based on your specific Groww export format.
         const remarks =
           this.readText(
             row,
@@ -120,8 +149,10 @@ export class GrowwImportService {
           : TradeSegment.DELIVERY;
 
         const quantity = this.readNumber(row, "Quantity", "Qty");
+        if (quantity === undefined || quantity <= 0) {
+          throw new Error("Quantity must be a positive number.");
+        }
 
-        // Adjusted to fall back to 'Value' / 'Quantity' if 'Average Price' is missing
         let executionPrice = this.readNumber(
           row,
           "Average Price",
@@ -131,8 +162,12 @@ export class GrowwImportService {
 
         if (executionPrice === undefined) {
           const totalValue = this.readNumber(row, "Value", "Order Value");
-          if (totalValue !== undefined && quantity)
+          if (totalValue !== undefined && quantity) {
             executionPrice = totalValue / quantity;
+          }
+        }
+        if (executionPrice === undefined || executionPrice < 0) {
+          throw new Error("Average Price must be a non-negative number.");
         }
 
         const tradeDate = this.readDate(
@@ -143,7 +178,8 @@ export class GrowwImportService {
           "Order Date",
         );
 
-        parsedTrades.push({
+        // Push to array instead of processing immediately
+        const trade: CreateTradeDTO = {
           userId,
           tickerSymbol: symbol.toUpperCase(),
           tradeType,
@@ -153,56 +189,100 @@ export class GrowwImportService {
           chargesAndTaxes:
             this.readNumber(row, "Charges and Taxes", "Charges", "Taxes") ?? 0,
           tradeDate: tradeDate.toISOString(),
-        });
+        };
+        trade.importFingerprint = this.createFingerprint(trade, worksheetRow);
+        parsedTrades.push({ trade, row: worksheetRow });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `Parsing failed at row ${index + 1} for ${symbol ?? "unknown symbol"}: ${message}`,
+          `Parsing failed at row ${worksheetRow} for ${symbol ?? "unknown symbol"}: ${message}`,
         );
         results.failed++;
         results.errors.push({
-          row: index + 1,
+          row: worksheetRow,
           symbol: symbol ?? "",
           error: message,
         });
       }
     }
 
-    // --- Sort Chronologically (Oldest first) ---
+    // --- PHASE 2: Sort Chronologically and Process ---
+    // Ensure older trades are processed before newer trades
     parsedTrades.sort(
-      (a, b) =>
-        new Date(a.tradeDate).getTime() - new Date(b.tradeDate).getTime(),
+      (a, b) => new Date(a.trade.tradeDate).getTime() - new Date(b.trade.tradeDate).getTime(),
     );
 
-    // --- Execute Database Transactions ---
-    for (const trade of parsedTrades) {
+    for (const { trade, row } of parsedTrades) {
       try {
         await this.investmentsService.processTrade(trade);
         results.successful++;
       } catch (error: unknown) {
+        if (this.isUniqueConstraintError(error)) {
+          results.skipped++;
+          continue;
+        }
         const message = error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `Database processing failed for ${trade.tickerSymbol}: ${message}`,
+          `Database processing failed at row ${row} for ${trade.tickerSymbol}: ${message}`,
         );
         results.failed++;
         results.errors.push({
-          row: -1,
+          row,
           symbol: trade.tickerSymbol,
           error: message,
         });
       }
     }
+
     return results;
+  }
+
+  private createFingerprint(trade: CreateTradeDTO, worksheetRow: number): string {
+    const identity = [
+      trade.userId,
+      trade.tickerSymbol,
+      trade.tradeType,
+      trade.segment,
+      trade.quantity,
+      trade.executionPrice,
+      trade.chargesAndTaxes,
+      trade.tradeDate,
+      worksheetRow,
+    ].join("|");
+    return createHash("sha256").update(identity).digest("hex");
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const candidate = error as {
+      code?: string;
+      constraint?: string;
+      driverError?: { code?: string; constraint?: string };
+    };
+    return (
+      (candidate.code === "23505" || candidate.driverError?.code === "23505") &&
+      (candidate.constraint === "IDX_investment_transactions_user_import_fingerprint" ||
+        candidate.driverError?.constraint === "IDX_investment_transactions_user_import_fingerprint")
+    );
   }
 
   private readText(
     row: Record<string, unknown>,
     ...columns: string[]
   ): string | undefined {
+    const rowKeys = Object.keys(row);
+
     for (const column of columns) {
-      const value = row[column];
-      if (value !== undefined && value !== null && String(value).trim()) {
-        return String(value).trim();
+      // Find the key in the row that matches case-insensitively
+
+      const actualKey = rowKeys.find(
+        (k) => k.toLowerCase() === column.toLowerCase(),
+      );
+      if (actualKey) {
+        const value = row[actualKey];
+        if (value !== undefined && value !== null && String(value).trim()) {
+          return String(value).trim();
+        }
       }
     }
     return undefined;
@@ -225,12 +305,25 @@ export class GrowwImportService {
   }
 
   private readDate(row: Record<string, unknown>, ...columns: string[]): Date {
-    const value = columns
-      .map((column) => row[column])
-      .find(
-        (candidate) =>
-          candidate !== undefined && candidate !== null && candidate !== "",
+    const rowKeys = Object.keys(row);
+    let value: unknown;
+    let foundColumn: string = columns[0];
+
+    for (const column of columns) {
+      const actualKey = rowKeys.find(
+        (k) => k.toLowerCase() === column.toLowerCase(),
       );
+      if (
+        actualKey &&
+        row[actualKey] !== undefined &&
+        row[actualKey] !== null &&
+        row[actualKey] !== ""
+      ) {
+        value = row[actualKey];
+        foundColumn = actualKey;
+        break;
+      }
+    }
 
     let date: Date;
     if (value instanceof Date) {
@@ -252,7 +345,7 @@ export class GrowwImportService {
     }
 
     if (Number.isNaN(date.getTime())) {
-      throw new Error(`${columns[0]} must be a valid date.`);
+      throw new Error(`${foundColumn} must be a valid date.`);
     }
     return date;
   }
@@ -274,5 +367,6 @@ export interface ImportResult {
   totalProcessed: number;
   successful: number;
   failed: number;
+  skipped: number;
   errors: { row: number; symbol: string; error: string }[];
 }

@@ -57,6 +57,7 @@ export class InvestmentsService {
           chargesAndTaxes: dto.chargesAndTaxes,
           tradeDate,
           broker: dto.broker ?? "Groww",
+          importFingerprint: dto.importFingerprint ?? null,
         });
         return manager.save(interestTx);
       }
@@ -82,6 +83,7 @@ export class InvestmentsService {
             chargesAndTaxes: dto.chargesAndTaxes ?? 0,
             tradeDate,
             broker: dto.broker ?? "Groww",
+            importFingerprint: dto.importFingerprint ?? null,
           }),
         );
       }
@@ -197,6 +199,7 @@ export class InvestmentsService {
         executionPrice: dto.executionPrice,
         chargesAndTaxes,
         broker: dto.broker ?? "Groww",
+        importFingerprint: dto.importFingerprint ?? null,
         ...(realizedPnl === undefined ? {} : { realizedPnl }),
         tradeDate,
       });
