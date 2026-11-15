@@ -72,17 +72,29 @@ export class GrowwImportService {
       !hasAny("Symbol", "Trading Symbol", "Stock Name") && "symbol",
       !hasAny("Type", "Transaction Type") && "type",
       !hasAny("Quantity", "Qty") && "quantity",
-      !hasAny("Average Price", "Price", "Trade Price", "Value", "Order Value") && "price/value",
-      !hasAny("Execution date and time", "Date", "Trade Date", "Order Date") && "date",
+      !hasAny(
+        "Average Price",
+        "Price",
+        "Trade Price",
+        "Value",
+        "Order Value",
+      ) && "price/value",
+      !hasAny("Execution date and time", "Date", "Trade Date", "Order Date") &&
+        "date",
     ].filter((value): value is string => Boolean(value));
     if (missing.length) {
-      throw new BadRequestException(`Invalid Groww trade book: missing required column(s): ${missing.join(", ")}.`);
+      throw new BadRequestException(
+        `Invalid Groww trade book: missing required column(s): ${missing.join(", ")}.`,
+      );
     }
     const dataRows = rawRows.slice(headerRowIndex + 1);
 
     const rows = dataRows
       .map((row, index) => ({ row, worksheetRow: headerRowIndex + index + 2 }))
-      .filter(({ row }) => Array.isArray(row) && row.some((cell) => cell != null && cell !== ""))
+      .filter(
+        ({ row }) =>
+          Array.isArray(row) && row.some((cell) => cell != null && cell !== ""),
+      )
       .map(({ row, worksheetRow }) => {
         const obj: Record<string, unknown> = {};
         headers.forEach((header, i) => {
@@ -103,7 +115,6 @@ export class GrowwImportService {
     const parsedTrades: { trade: CreateTradeDTO; row: number }[] = [];
 
     for (const { values: row, worksheetRow } of rows) {
-
       const status = this.readText(
         row,
         "Order status",
@@ -209,7 +220,9 @@ export class GrowwImportService {
     // --- PHASE 2: Sort Chronologically and Process ---
     // Ensure older trades are processed before newer trades
     parsedTrades.sort(
-      (a, b) => new Date(a.trade.tradeDate).getTime() - new Date(b.trade.tradeDate).getTime(),
+      (a, b) =>
+        new Date(a.trade.tradeDate).getTime() -
+        new Date(b.trade.tradeDate).getTime(),
     );
 
     for (const { trade, row } of parsedTrades) {
@@ -237,7 +250,10 @@ export class GrowwImportService {
     return results;
   }
 
-  private createFingerprint(trade: CreateTradeDTO, worksheetRow: number): string {
+  private createFingerprint(
+    trade: CreateTradeDTO,
+    worksheetRow: number,
+  ): string {
     const identity = [
       trade.userId,
       trade.tickerSymbol,
@@ -261,8 +277,10 @@ export class GrowwImportService {
     };
     return (
       (candidate.code === "23505" || candidate.driverError?.code === "23505") &&
-      (candidate.constraint === "IDX_investment_transactions_user_import_fingerprint" ||
-        candidate.driverError?.constraint === "IDX_investment_transactions_user_import_fingerprint")
+      (candidate.constraint ===
+        "IDX_investment_transactions_user_import_fingerprint" ||
+        candidate.driverError?.constraint ===
+          "IDX_investment_transactions_user_import_fingerprint")
     );
   }
 
@@ -332,16 +350,43 @@ export class GrowwImportService {
       const parsed = xlsx.SSF.parse_date_code(value);
       date = parsed
         ? new Date(
-            parsed.y,
-            parsed.m - 1,
-            parsed.d,
-            parsed.H,
-            parsed.M,
-            parsed.S,
+            Date.UTC(
+              parsed.y,
+              parsed.m - 1,
+              parsed.d,
+              parsed.H,
+              parsed.M,
+              parsed.S,
+            ),
           )
         : new Date(Number.NaN);
     } else {
-      date = new Date(String(value ?? ""));
+      const dateStr = String(value ?? "").trim();
+
+      // Regex to capture DD-MM-YYYY or DD/MM/YYYY with optional time (HH:MM PM/AM)
+      const regex =
+        /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?)?/;
+      const match = dateStr.match(regex);
+
+      if (match) {
+        const day = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10) - 1; // JS months are 0-indexed
+        const year = parseInt(match[3], 10);
+
+        let hours = match[4] ? parseInt(match[4], 10) : 0;
+        const minutes = match[5] ? parseInt(match[5], 10) : 0;
+        const seconds = match[6] ? parseInt(match[6], 10) : 0;
+        const ampm = match[7]?.toUpperCase();
+
+        if (ampm === "PM" && hours < 12) hours += 12;
+        if (ampm === "AM" && hours === 12) hours = 0;
+
+        // Use Date.UTC to prevent local timezone offsets from pushing the date back by 1 day at midnight
+        date = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
+      } else {
+        // Fallback for native ISO formats
+        date = new Date(dateStr);
+      }
     }
 
     if (Number.isNaN(date.getTime())) {
