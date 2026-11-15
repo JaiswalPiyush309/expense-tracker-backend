@@ -11,7 +11,10 @@ export class GrowwImportService {
 
   constructor(private readonly investmentsService: InvestmentsService) {}
 
-  async processTradeBook(userId: string, fileBuffer: Buffer): Promise<ImportResult> {
+  async processTradeBook(
+    userId: string,
+    fileBuffer: Buffer,
+  ): Promise<ImportResult> {
     if (!userId?.trim()) {
       throw new BadRequestException("userId is required.");
     }
@@ -23,16 +26,36 @@ export class GrowwImportService {
       type: "buffer",
       cellDates: true,
     });
+
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) {
-      throw new BadRequestException("Groww export does not contain a worksheet.");
+      throw new BadRequestException(
+        "Groww export does not contain a worksheet.",
+      );
     }
+
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) {
       throw new BadRequestException(`Unable to read worksheet: ${sheetName}`);
     }
 
-    // Parse sheet to JSON array
+    // Read as a 2D array first to find where the actual table starts
+    const rawRows = xlsx.utils.sheet_to_json<any[]>(sheet, { header: 1 });
+    const headerRowIndex = rawRows.findIndex((row) =>
+      row.some(
+        (cell) =>
+          String(cell).toLowerCase().includes("symbol") ||
+          String(cell).toLowerCase().includes("stock name"),
+      ),
+    );
+
+    if (headerRowIndex === -1) {
+      throw new BadRequestException(
+        "Invalid format: Could not find 'Symbol' or 'Stock name' header row.",
+      );
+    }
+
+    // Re-parse the sheet starting exactly from the header row
     const rows = xlsx.utils.sheet_to_json<Record<string, unknown>>(sheet, {
       defval: undefined,
       raw: true,
@@ -45,62 +68,126 @@ export class GrowwImportService {
       errors: [] as { row: number; symbol: string; error: string }[],
     };
 
+    // --- IMPROVEMENT 2: Phase 1 - Parse and Filter ---
+    const parsedTrades: CreateTradeDTO[] = [];
+
     for (const [index, row] of rows.entries()) {
       results.totalProcessed++;
-      const symbol = this.readText(row, "Symbol", "Trading Symbol", "Stock Name");
+
+      // Skip non-executed orders
+      const status = this.readText(
+        row,
+        "Order status",
+        "Status",
+      )?.toUpperCase();
+
+      if (status && status !== "EXECUTED") {
+        continue;
+      }
+
+      const symbol = this.readText(
+        row,
+        "Symbol",
+        "Trading Symbol",
+        "Stock Name",
+      );
 
       try {
         if (!symbol) {
           throw new Error("Missing Symbol.");
         }
 
-        const rawType = this.readText(row, "Type", "Transaction Type")?.toUpperCase();
+        const rawType = this.readText(
+          row,
+          "Type",
+          "Transaction Type",
+        )?.toUpperCase();
+
         const tradeType = this.parseTradeType(rawType);
 
         // Groww Trade Books usually denote MTF in the remarks or separate MTF sections.
         // Defaulting to DELIVERY. Adjust this logic based on your specific Groww export format.
-        const remarks = this.readText(row, "Remarks", "Segment")?.toUpperCase() ?? "";
+        const remarks =
+          this.readText(
+            row,
+            "Remarks",
+            "Segment",
+            "Order type",
+          )?.toUpperCase() ?? "";
+
         const segment = remarks.includes("MTF")
           ? TradeSegment.MTF
           : TradeSegment.DELIVERY;
 
         const quantity = this.readNumber(row, "Quantity", "Qty");
-        const executionPrice = this.readNumber(
+
+        // Adjusted to fall back to 'Value' / 'Quantity' if 'Average Price' is missing
+        let executionPrice = this.readNumber(
           row,
           "Average Price",
           "Price",
           "Trade Price",
         );
-        const tradeDate = this.readDate(row, "Date", "Trade Date", "Order Date");
 
-        const tradeDto: CreateTradeDTO = {
+        if (executionPrice === undefined) {
+          const totalValue = this.readNumber(row, "Value", "Order Value");
+          if (totalValue !== undefined && quantity)
+            executionPrice = totalValue / quantity;
+        }
+
+        const tradeDate = this.readDate(
+          row,
+          "Execution date and time",
+          "Date",
+          "Trade Date",
+          "Order Date",
+        );
+
+        parsedTrades.push({
           userId,
           tickerSymbol: symbol.toUpperCase(),
           tradeType,
           segment,
-          quantity,
-          executionPrice,
-          chargesAndTaxes: this.readNumber(
-            row,
-            "Charges and Taxes",
-            "Charges",
-            "Taxes",
-          ) ?? 0,
+          quantity: quantity as number,
+          executionPrice: executionPrice as number,
+          chargesAndTaxes:
+            this.readNumber(row, "Charges and Taxes", "Charges", "Taxes") ?? 0,
           tradeDate: tradeDate.toISOString(),
-        };
-
-        // Pass to the strict transactional service you built
-        await this.investmentsService.processTrade(tradeDto);
-        results.successful++;
+        });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `Row ${index + 1} failed for ${symbol ?? "unknown symbol"}: ${message}`,
+          `Parsing failed at row ${index + 1} for ${symbol ?? "unknown symbol"}: ${message}`,
         );
         results.failed++;
         results.errors.push({
           row: index + 1,
           symbol: symbol ?? "",
+          error: message,
+        });
+      }
+    }
+
+    // --- Sort Chronologically (Oldest first) ---
+    parsedTrades.sort(
+      (a, b) =>
+        new Date(a.tradeDate).getTime() - new Date(b.tradeDate).getTime(),
+    );
+
+    // --- Execute Database Transactions ---
+    for (const trade of parsedTrades) {
+      try {
+        await this.investmentsService.processTrade(trade);
+        results.successful++;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Database processing failed for ${trade.tickerSymbol}: ${message}`,
+        );
+        results.failed++;
+        results.errors.push({
+          row: -1,
+          symbol: trade.tickerSymbol,
           error: message,
         });
       }
@@ -137,13 +224,13 @@ export class GrowwImportService {
     return parsed;
   }
 
-  private readDate(
-    row: Record<string, unknown>,
-    ...columns: string[]
-  ): Date {
-    const value = columns.map((column) => row[column]).find(
-      (candidate) => candidate !== undefined && candidate !== null && candidate !== "",
-    );
+  private readDate(row: Record<string, unknown>, ...columns: string[]): Date {
+    const value = columns
+      .map((column) => row[column])
+      .find(
+        (candidate) =>
+          candidate !== undefined && candidate !== null && candidate !== "",
+      );
 
     let date: Date;
     if (value instanceof Date) {
@@ -151,7 +238,14 @@ export class GrowwImportService {
     } else if (typeof value === "number") {
       const parsed = xlsx.SSF.parse_date_code(value);
       date = parsed
-        ? new Date(parsed.y, parsed.m - 1, parsed.d, parsed.H, parsed.M, parsed.S)
+        ? new Date(
+            parsed.y,
+            parsed.m - 1,
+            parsed.d,
+            parsed.H,
+            parsed.M,
+            parsed.S,
+          )
         : new Date(Number.NaN);
     } else {
       date = new Date(String(value ?? ""));
@@ -163,7 +257,9 @@ export class GrowwImportService {
     return date;
   }
 
-  private parseTradeType(value: string | undefined): TradeType.BUY | TradeType.SELL {
+  private parseTradeType(
+    value: string | undefined,
+  ): TradeType.BUY | TradeType.SELL {
     if (value?.includes("BUY")) {
       return TradeType.BUY;
     }
