@@ -48,6 +48,7 @@ export class InvestmentsController {
   @UseInterceptors(FileInterceptor("file"))
   async importGrowwTrades(
     @UploadedFile() file: Express.Multer.File,
+    @Body("accountId") accountId: string | undefined,
     @CurrentUser() user: AuthUser,
   ) {
     if (!file) {
@@ -57,6 +58,7 @@ export class InvestmentsController {
     const importResults = await this.growwImportService.processTradeBook(
       user.userId,
       file.buffer,
+      accountId,
     );
 
     return {

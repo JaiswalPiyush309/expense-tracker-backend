@@ -16,6 +16,10 @@ export class CreateTradeDTO {
   @IsOptional()
   userId: string;
 
+  @IsUUID()
+  @IsOptional()
+  accountId?: string;
+
   @IsString()
   @IsNotEmpty()
   tickerSymbol: string;

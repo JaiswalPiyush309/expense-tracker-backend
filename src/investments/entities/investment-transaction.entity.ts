@@ -10,6 +10,7 @@ import {
 import { User } from "../../users/entities/user.entity.js";
 import { InvestmentHolding } from "./investment-holding.entity.js";
 import { TradeSegment } from "../enums/transaction.enum.js";
+import { Account } from "../../accounts/entities/account.entity.js";
 
 export enum TradeType {
   BUY = "BUY",
@@ -38,6 +39,13 @@ export class InvestmentTransaction {
   @ManyToOne(() => InvestmentHolding, { onDelete: "SET NULL" })
   @JoinColumn({ name: "holdingId" })
   holding: InvestmentHolding;
+
+  @Column({ type: "uuid", nullable: true })
+  accountId: string | null;
+
+  @ManyToOne(() => Account, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "accountId" })
+  account: Account | null;
 
   @Column({ type: "enum", enum: TradeType })
   tradeType: TradeType;

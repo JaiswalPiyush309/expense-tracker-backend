@@ -21,6 +21,8 @@ import {
   ShareMarketDashboardDTO,
 } from "./interfaces/dashboard-metrics.interface.js";
 import { PortfolioHoldingsResponseDTO } from "./interfaces/portfolio-holdings.interface.js";
+import { Account } from "../accounts/entities/account.entity.js";
+import { Transaction, TransactionType } from "../transactions/entities/transaction.entity.js";
 
 @Injectable()
 export class InvestmentsService {
@@ -51,8 +53,11 @@ export class InvestmentsService {
       if (dto.tradeType === TradeType.MTF_INTEREST) {
         this.assertNonNegativeNumber(dto.chargesAndTaxes, "chargesAndTaxes");
 
+        await this.applyWalletFlow(manager, dto, Number(dto.chargesAndTaxes), false, "MTF interest");
+
         const interestTx = manager.create(InvestmentTransaction, {
           userId: dto.userId,
+          accountId: dto.accountId ?? null,
           tradeType: TradeType.MTF_INTEREST,
           chargesAndTaxes: dto.chargesAndTaxes,
           tradeDate,
@@ -67,6 +72,12 @@ export class InvestmentsService {
         this.assertNonNegativeNumber(dto.quantity, "quantity");
         this.assertNonNegativeNumber(dto.executionPrice, "executionPrice");
         this.assertNonNegativeNumber(dto.chargesAndTaxes, "chargesAndTaxes");
+        await this.applyWalletFlow(
+          manager, dto,
+          Number(dto.executionPrice) * Number(dto.quantity) - Number(dto.chargesAndTaxes ?? 0),
+          true,
+          `Dividend — ${tickerSymbol}`,
+        );
 
         // 2. Find or Initialize the Portfolio Holding
         const holding = await manager.findOne(InvestmentHolding, {
@@ -76,6 +87,7 @@ export class InvestmentsService {
         return manager.save(
           manager.create(InvestmentTransaction, {
             userId: dto.userId,
+            accountId: dto.accountId ?? null,
             holdingId: holding?.id,
             tradeType: TradeType.DIVIDEND,
             quantity: dto.quantity,
@@ -134,6 +146,14 @@ export class InvestmentsService {
       const quantity = dto.quantity as number;
       const executionPrice = dto.executionPrice as number;
       const chargesAndTaxes = dto.chargesAndTaxes ?? 0;
+      const cashAmount = quantity * executionPrice + chargesAndTaxes;
+      await this.applyWalletFlow(
+        manager,
+        dto,
+        dto.tradeType === TradeType.BUY ? cashAmount : quantity * executionPrice - chargesAndTaxes,
+        dto.tradeType === TradeType.SELL,
+        `${dto.tradeType === TradeType.BUY ? "Share purchase" : "Share sale"} — ${tickerSymbol}`,
+      );
       const isMtf = dto.segment === TradeSegment.MTF;
       let realizedPnl: number | undefined;
 
@@ -192,6 +212,7 @@ export class InvestmentsService {
       // 6. Record the Transaction Ledger Entry
       const transaction = manager.create(InvestmentTransaction, {
         userId: dto.userId,
+        accountId: dto.accountId ?? null,
         holdingId: savedHolding.id,
         tradeType: dto.tradeType,
         segment: dto.segment,
@@ -206,6 +227,36 @@ export class InvestmentsService {
 
       return manager.save(transaction);
     });
+  }
+
+  private async applyWalletFlow(
+    manager: import("typeorm").EntityManager,
+    dto: CreateTradeDTO,
+    amount: number,
+    isIncome: boolean,
+    note: string,
+  ): Promise<void> {
+    if (!dto.accountId) return;
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new BadRequestException("Net wallet amount cannot be negative.");
+    }
+    if (amount === 0) return;
+    const account = await manager.findOne(Account, {
+      where: { id: dto.accountId, userId: dto.userId, isArchived: false },
+      lock: { mode: "pessimistic_write" },
+    });
+    if (!account) throw new NotFoundException("Selected wallet was not found.");
+    account.balance = Number(account.balance) + (isIncome ? amount : -amount);
+    await manager.save(Account, account);
+    await manager.save(Transaction, manager.create(Transaction, {
+      userId: dto.userId,
+      accountId: account.id,
+      type: isIncome ? TransactionType.INCOME : TransactionType.EXPENSE,
+      amount,
+      transactionDate: new Date(dto.tradeDate),
+      merchant: dto.broker ?? "Groww",
+      note,
+    }));
   }
 
   async getDashboardMetrics(userId: string): Promise<ShareMarketDashboardDTO> {

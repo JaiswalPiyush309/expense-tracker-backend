@@ -15,6 +15,7 @@ export class GrowwImportService {
   async processTradeBook(
     userId: string,
     fileBuffer: Buffer,
+    accountId?: string,
   ): Promise<ImportResult> {
     if (!userId?.trim()) {
       throw new BadRequestException("userId is required.");
@@ -200,6 +201,7 @@ export class GrowwImportService {
           chargesAndTaxes:
             this.readNumber(row, "Charges and Taxes", "Charges", "Taxes") ?? 0,
           tradeDate: tradeDate.toISOString(),
+          accountId,
         };
         trade.importFingerprint = this.createFingerprint(trade, worksheetRow);
         parsedTrades.push({ trade, row: worksheetRow });
