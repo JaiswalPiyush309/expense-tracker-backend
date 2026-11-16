@@ -7,6 +7,7 @@ export enum BankCategory {
   PAYMENTS_BANK_WALLET = "PAYMENTS_BANK_WALLET",
   FOREIGN_BANK = "FOREIGN_BANK",
   OTHER = "OTHER",
+  WALLET = "WALLET",
 }
 
 export interface SupportedBank {
@@ -400,6 +401,16 @@ export const INDIAN_BANKS_CATALOG: SupportedBank[] = [
     category: BankCategory.OTHER,
     defaultAccountType: AccountType.CASH,
     brandColor: "#10B981",
+    isPopular: true,
+  },
+
+  {
+    code: "GROWW",
+    bankName: "Groww Invest Tech Pvt Ltd",
+    shortName: "Groww",
+    category: BankCategory.WALLET, // Or BankCategory.BROKERAGE if you created that enum
+    defaultAccountType: AccountType.INVESTMENT, // Maps to your form's "Investment" or "Wallet" type
+    brandColor: "#00D09C", // Groww's official primary brand green
     isPopular: true,
   },
 ];
