@@ -101,6 +101,7 @@ export class TransactionsService {
       limit = 20,
       type,
       accountId,
+      relatedAccountId,
       categoryId,
       startDate,
       endDate,
@@ -121,6 +122,12 @@ export class TransactionsService {
 
     if (type) qb.andWhere("tx.type = :type", { type });
     if (accountId) qb.andWhere("tx.accountId = :accountId", { accountId });
+    if (relatedAccountId) {
+      qb.andWhere(
+        "(tx.accountId = :relatedAccountId OR tx.toAccountId = :relatedAccountId)",
+        { relatedAccountId },
+      );
+    }
     if (categoryId) qb.andWhere("tx.categoryId = :categoryId", { categoryId });
     if (startDate)
       qb.andWhere("tx.transactionDate >= :startDate", { startDate });

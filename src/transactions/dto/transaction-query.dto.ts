@@ -35,6 +35,10 @@ export class TransactionQueryDTO {
 
   @IsOptional()
   @IsUUID()
+  relatedAccountId?: string;
+
+  @IsOptional()
+  @IsUUID()
   categoryId?: string;
 
   @IsOptional()
