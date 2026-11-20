@@ -58,7 +58,7 @@ export class Budget {
   })
   ruleCategory: BudgetRuleCategory;
 
-  @Column({ length: 80, nullable: true })
+  @Column({ type: "varchar", length: 80, nullable: true })
   categoryTag: string | null; // e.g. "Primary Residence", "Daily Needs", "Discretionary"
 
   @Column({ type: "text", nullable: true })
