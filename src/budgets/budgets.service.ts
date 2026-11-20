@@ -96,6 +96,20 @@ export class BudgetsService {
       },
       order: { transactionDate: "DESC" },
     });
+    const previousMonthStart = new Date(year, month - 2, 1);
+    const previousMonthEnd = new Date(year, month - 1, 0, 23, 59, 59, 999);
+    const previousMonthTransactions = await this.transactionRepository.find({
+      where: {
+        userId,
+        type: TransactionType.EXPENSE,
+        transactionDate: Between(previousMonthStart, previousMonthEnd),
+      },
+      select: { amount: true },
+    });
+    const previousMonthOutflow = previousMonthTransactions.reduce(
+      (total, transaction) => total + Number(transaction.amount),
+      0,
+    );
 
     // Aggregate spending by categoryId
     const spentByCategory = new Map<string, { total: number; count: number; recent: string }>();
@@ -234,6 +248,9 @@ export class BudgetsService {
     const projectedSpend = Math.round(
       (overallOutflow / (currentDay || 1)) * totalDaysInMonth,
     );
+    const outflowTrendPercent = previousMonthOutflow > 0 && currentDay > 0
+      ? Number((((projectedSpend - previousMonthOutflow) / previousMonthOutflow) * 100).toFixed(1))
+      : null;
     const actualAtCurrentDay = Array.from(dailySpend.entries())
       .filter(([day]) => day <= currentDay)
       .reduce((total, [, amount]) => total + amount, 0);
@@ -268,7 +285,7 @@ export class BudgetsService {
         envelopeCount: envelopes.length,
         totalOutflow: overallOutflow,
         outflowPercent,
-        outflowTrendPercent: 0,
+        outflowTrendPercent,
         safeSurplus,
         remainingDays,
         currentDay,
