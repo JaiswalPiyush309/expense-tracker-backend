@@ -54,7 +54,7 @@ export class LedgerRepayment {
   })
   paymentMode: RepaymentMode;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: "varchar", length: 100, nullable: true })
   referenceId: string | null;
 
   @Column({ type: "text", nullable: true })

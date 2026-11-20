@@ -58,15 +58,15 @@ export class PersonalLedger {
   counterpartyName: string;
 
   /** Optional email to link or notify member */
-  @Column({ length: 150, nullable: true })
+  @Column({ type: "varchar", length: 150, nullable: true })
   counterpartyEmail: string | null;
 
   /** Optional phone to identify member */
-  @Column({ length: 30, nullable: true })
+  @Column({ type: "varchar", length: 30, nullable: true })
   counterpartyPhone: string | null;
 
   /** Relationship category (e.g. "Friend", "Colleague", "Family", "Business", "Other") */
-  @Column({ length: 50, nullable: true })
+  @Column({ type: "varchar", length: 50, nullable: true })
   relationship: string | null;
 
   /** Principal amount of loan */
@@ -94,11 +94,11 @@ export class PersonalLedger {
   sourceAccountId: string | null;
 
   /** Cached name of the bank/cash account (e.g. "HDFC Salary A/c", "Cash in Hand") */
-  @Column({ length: 100, nullable: true })
+  @Column({ type: "varchar", length: 100, nullable: true })
   sourceAccountName: string | null;
 
   /** Short description / title */
-  @Column({ length: 150, nullable: true })
+  @Column({ type: "varchar", length: 150, nullable: true })
   description: string | null;
 
   /** Extended notes or terms */
