@@ -10,6 +10,7 @@ import { AccountsModule } from "./accounts/accounts.module.js";
 import { TransactionSyncModule } from "./transaction-sync/transaction-sync.module.js";
 import { InvestmentsModule } from "./investments/investments.module.js";
 import { LedgersModule } from "./ledgers/ledgers.module.js";
+import { BudgetsModule } from "./budgets/budgets.module.js";
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { LedgersModule } from "./ledgers/ledgers.module.js";
     TransactionSyncModule,
     InvestmentsModule,
     LedgersModule,
+    BudgetsModule,
   ],
 })
 export class AppModule {}
