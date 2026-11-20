@@ -6,6 +6,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from "typeorm";
 import { PersonalLedger } from "./personal-ledger.entity.js";
 import { User } from "../../users/entities/user.entity.js";
@@ -30,7 +31,7 @@ export class LedgerRepayment {
     onDelete: "CASCADE",
   })
   @JoinColumn({ name: "ledgerId" })
-  ledger: PersonalLedger;
+  ledger: Relation<PersonalLedger>;
 
   /** The user who logged this repayment */
   @Column({ type: "uuid" })

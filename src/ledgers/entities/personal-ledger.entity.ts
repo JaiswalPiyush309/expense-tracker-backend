@@ -8,6 +8,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  type Relation,
 } from "typeorm";
 import { User } from "../../users/entities/user.entity.js";
 import { LedgerRepayment } from "./ledger-repayment.entity.js";
@@ -110,7 +111,7 @@ export class PersonalLedger {
   @OneToMany(() => LedgerRepayment, (repayment) => repayment.ledger, {
     cascade: true,
   })
-  repayments: LedgerRepayment[];
+  repayments: Relation<LedgerRepayment[]>;
 
   @CreateDateColumn()
   createdAt: Date;
