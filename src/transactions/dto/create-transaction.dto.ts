@@ -12,6 +12,13 @@ import {
 } from "class-validator";
 import { TransactionType } from "../entities/transaction.entity.js";
 
+const DEBT_TYPES = [
+  TransactionType.BORROW,
+  TransactionType.BORROW_REPAYMENT,
+  TransactionType.LEND,
+  TransactionType.LEND_REPAYMENT,
+];
+
 export class CreateTransactionDTO {
   @IsUUID()
   @IsNotEmpty()
@@ -22,10 +29,13 @@ export class CreateTransactionDTO {
   @IsNotEmpty()
   toAccountId?: string;
 
-  @ValidateIf((o) => o.type !== TransactionType.TRANSFER)
+  @ValidateIf(
+    (o) =>
+      o.type === TransactionType.INCOME || o.type === TransactionType.EXPENSE,
+  )
   @IsUUID()
   @IsNotEmpty()
-  categoryId?: string;
+  categoryId?: string | null;
 
   @IsEnum(TransactionType)
   type: TransactionType;
@@ -40,6 +50,15 @@ export class CreateTransactionDTO {
   @IsOptional()
   @IsString()
   merchant?: string;
+
+  @ValidateIf((o) => DEBT_TYPES.includes(o.type))
+  @IsString()
+  @IsNotEmpty({ message: "Counterparty / Party name is required for debt transactions" })
+  counterpartyName?: string;
+
+  @IsOptional()
+  @IsUUID()
+  parentTransactionId?: string;
 
   @IsOptional()
   @IsString()

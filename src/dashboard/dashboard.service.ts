@@ -10,9 +10,11 @@ import {
 } from "../ledgers/entities/personal-ledger.entity.js";
 import { InvestmentHolding } from "../investments/entities/investment-holding.entity.js";
 import {
+  SettlementStatus,
   Transaction,
   TransactionType,
 } from "../transactions/entities/transaction.entity.js";
+import { In } from "typeorm";
 import { Budget } from "../budgets/entities/budget.entity.js";
 import { Account, AccountType } from "../accounts/entities/account.entity.js";
 
@@ -353,18 +355,32 @@ export class DashboardService {
   }
 
   private async getMoneyLentMetrics(userId: string) {
-    const records = await this.dataSource.getRepository(PersonalLedger).find({
-      where: { userId, type: LedgerType.LENT },
-      order: { dueDate: "ASC" },
-    });
+    const [records, openLendTxs] = await Promise.all([
+      this.dataSource.getRepository(PersonalLedger).find({
+        where: { userId, type: LedgerType.LENT },
+        order: { dueDate: "ASC" },
+      }),
+      this.dataSource.getRepository(Transaction).find({
+        where: {
+          userId,
+          type: TransactionType.LEND,
+          settlementStatus: In([SettlementStatus.OPEN, SettlementStatus.PARTIAL]),
+        },
+      }),
+    ]);
 
     const activeRecords = records.filter(
       (r) => r.status !== LedgerStatus.SETTLED,
     );
-    const totalReceivable = activeRecords.reduce(
+    const ledgerReceivable = activeRecords.reduce(
       (sum, r) => sum + (Number(r.principalAmount) - Number(r.settledAmount)),
       0,
     );
+    const txReceivable = openLendTxs.reduce(
+      (sum, t) => sum + Number(t.remainingAmount ?? t.amount),
+      0,
+    );
+    const totalReceivable = ledgerReceivable + txReceivable;
 
     const today = new Date();
     const overdueRecords = activeRecords.filter(
@@ -380,11 +396,14 @@ export class DashboardService {
         }
       : null;
 
-    const uniqueBorrowers = new Set(
-      activeRecords
+    const uniqueBorrowers = new Set([
+      ...activeRecords
         .map((r) => r.counterpartyName?.trim().toLowerCase())
         .filter(Boolean),
-    ).size;
+      ...openLendTxs
+        .map((t) => t.counterpartyName?.trim().toLowerCase())
+        .filter(Boolean),
+    ]).size;
 
     return {
       totalReceivable: Number(totalReceivable.toFixed(2)),
@@ -395,18 +414,32 @@ export class DashboardService {
   }
 
   private async getMoneyBorrowedMetrics(userId: string) {
-    const records = await this.dataSource.getRepository(PersonalLedger).find({
-      where: { userId, type: LedgerType.BORROWED },
-      order: { dueDate: "ASC" },
-    });
+    const [records, openBorrowTxs] = await Promise.all([
+      this.dataSource.getRepository(PersonalLedger).find({
+        where: { userId, type: LedgerType.BORROWED },
+        order: { dueDate: "ASC" },
+      }),
+      this.dataSource.getRepository(Transaction).find({
+        where: {
+          userId,
+          type: TransactionType.BORROW,
+          settlementStatus: In([SettlementStatus.OPEN, SettlementStatus.PARTIAL]),
+        },
+      }),
+    ]);
 
     const activeRecords = records.filter(
       (r) => r.status !== LedgerStatus.SETTLED,
     );
-    const totalLiability = activeRecords.reduce(
+    const ledgerLiability = activeRecords.reduce(
       (sum, r) => sum + (Number(r.principalAmount) - Number(r.settledAmount)),
       0,
     );
+    const txLiability = openBorrowTxs.reduce(
+      (sum, t) => sum + Number(t.remainingAmount ?? t.amount),
+      0,
+    );
+    const totalLiability = ledgerLiability + txLiability;
 
     const today = new Date();
     const upcoming = activeRecords

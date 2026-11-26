@@ -16,12 +16,30 @@ export enum TransactionType {
   INCOME = "INCOME",
   EXPENSE = "EXPENSE",
   TRANSFER = "TRANSFER",
+  INVESTMENT = "INVESTMENT",
+  BORROW = "BORROW",
+  BORROW_REPAYMENT = "BORROW_REPAYMENT",
+  LEND = "LEND",
+  LEND_REPAYMENT = "LEND_REPAYMENT",
+}
+
+export enum SettlementStatus {
+  OPEN = "OPEN",
+  PARTIAL = "PARTIAL",
+  SETTLED = "SETTLED",
+}
+
+export interface RepaymentAllocation {
+  parentId: string;
+  amount: number;
 }
 
 @Entity("transactions")
 @Index(["userId", "transactionDate"])
 @Index(["userId", "categoryId"])
 @Index(["userId", "accountId"])
+@Index(["userId", "type", "settlementStatus"])
+@Index(["parentTransactionId"])
 export class Transaction {
   @PrimaryGeneratedColumn("uuid")
   id: string;
@@ -67,16 +85,35 @@ export class Transaction {
   transactionDate: Date;
 
   @Column({ type: "varchar", length: 255, nullable: true })
-  merchant: string;
+  merchant: string | null;
+
+  @Column({ type: "varchar", length: 150, nullable: true })
+  counterpartyName: string | null;
+
+  @Column({ type: "uuid", nullable: true })
+  parentTransactionId: string | null;
+
+  @ManyToOne(() => Transaction, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "parentTransactionId" })
+  parentTransaction: Transaction | null;
+
+  @Column({ type: "enum", enum: SettlementStatus, nullable: true })
+  settlementStatus: SettlementStatus | null;
+
+  @Column({ type: "decimal", precision: 14, scale: 2, nullable: true })
+  remainingAmount: number | null;
+
+  @Column({ type: "jsonb", nullable: true })
+  repaymentAllocations: RepaymentAllocation[] | null;
 
   @Column({ type: "text", nullable: true })
-  note: string;
+  note: string | null;
 
   @Column({ type: "simple-array", nullable: true })
-  tags: string[];
+  tags: string[] | null;
 
-  @Column({ nullable: true })
-  attachmentUrl: string; // Receipt image URL
+  @Column({ type: "varchar", nullable: true })
+  attachmentUrl: string | null; // Receipt image URL
 
   @CreateDateColumn()
   createdAt: Date;
